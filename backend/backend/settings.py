@@ -10,6 +10,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.2/ref/settings/
 """
 
+from datetime import timedelta
+from rest_framework.settings import api_settings
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -25,7 +27,7 @@ SECRET_KEY = 'django-insecure-q2)09j8=$c#et(pe#3-3_jsoq=e%f=(#+3t2myofw44%xm_-kx
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '192.168.0.3', '0.0.0.0']
 
 
 # Application definition
@@ -41,7 +43,9 @@ INSTALLED_APPS = [
     'rooms.apps.RoomsConfig',
     'rest_framework',
     'knox',
-    'corsheaders'
+    'corsheaders',
+    'channels',
+    'background_task'
 ]
 
 MIDDLEWARE = [
@@ -55,16 +59,21 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_ALL_ORIGINS = True
 
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        # 'rest_framework.authentication.BasicAuthentication',
-        # 'rest_framework.authentication.SessionAuthentication',
-        'knox.auth.TokenAuthentication',
-    ]
+REST_KNOX = {
+  'TOKEN_TTL': None,
 }
 
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        #'rest_framework.authentication.BasicAuthentication',
+        'knox.auth.TokenAuthentication',
+        #'rest_framework.authentication.SessionAuthentication',
+    )
+}
+
+ASGI_APPLICATION = 'backend.asgi.application'
 ROOT_URLCONF = 'backend.urls'
 
 TEMPLATES = [
@@ -134,6 +143,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 
 STATIC_URL = '/static/'
+
+BACKGROUND_TASK_RUN_ASYNC = True
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field

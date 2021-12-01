@@ -15,15 +15,20 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from accounts.views import RegisterAPI, LoginAPI, ProfileAPI
+from accounts.views import RegisterAPI, LoginView, ProfileAPI
 from rooms.views import RoomApi
 from knox import views as knox_views
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/register/', RegisterAPI.as_view(), name='register'),
-    path('api/login/', LoginAPI.as_view(), name='login'),
+    #path('api/login/', LoginAPI.as_view(), name='login'),
+    path('login/', LoginView.as_view(), name='knox_login'),
+    path('logout/', knox_views.LogoutView.as_view(), name='knox_logout'),
+    path('logoutall/', knox_views.LogoutAllView.as_view(), name='knox_logoutall'),
     path('api/profile/', ProfileAPI.as_view(), name='profile'),
     path('api/', include('accounts.urls')),
-    path('api/rooms/', include('rooms.urls')),
+    path('api/', include('rooms.urls')),
+    path('api-auth/', include('rest_framework.urls'))
 ]

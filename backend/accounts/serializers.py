@@ -1,11 +1,16 @@
+
+
+from .models import Profile
+from rooms.serializers import RoomInfoSerializer
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Profile
 
 class UserSerializer(serializers.ModelSerializer):
+    dev_rooms = RoomInfoSerializer(many=True, read_only=True)
+
     class Meta:
         model = User
-        fields = ('id', 'username', 'email')
+        fields = ('id', 'username', 'email', 'dev_rooms',)
 
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -18,8 +23,10 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         return user
 
-class ProfileSerializer(serializers.HyperlinkedModelSerializer):
+class ProfileSerializer(serializers.ModelSerializer):
+    dev_rooms = RoomInfoSerializer(many=True, read_only=True)
+    
     class Meta:
         model = Profile
-        fields = ('hello', 'username')
-        extra_kwargs = {'url': {'lookup_url': 'hello'}}
+        fields = ('number', 'user', 'mylinks', 'dev_rooms')
+        extra_kwargs = {'url': {'lookup_url': 'user'}}
