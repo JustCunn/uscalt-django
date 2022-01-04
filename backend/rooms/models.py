@@ -26,22 +26,22 @@ class AuxSilo(models.Model):
     name = models.CharField(max_length=100, default=None, blank=True)
     data = models.TextField(default=None, blank=True)
     link = models.CharField(max_length=100, default=None, blank=True, null=True)
-    time = models.PositiveIntegerField(default=None, blank=True, null=True)
+    time = models.DateTimeField(default=None, blank=True, null=True)
+    data_hash = models.TextField(default=None, blank=True, null=True)
 
 class RoomLink(models.Model):
     display_name = models.CharField(max_length=70, default=None)
     name = models.CharField(max_length=70,default=None, blank=True,)
     desc = models.TextField(default="")
-    #android = models.BooleanField(default=False)
-    #ios = models.BooleanField(default=False)
-    #web = models.BooleanField(default=False)
     users = models.ManyToManyField('accounts.Profile', related_name='mylinks', default=None, blank=True)
     room = models.ForeignKey(Room, related_name='links', on_delete=models.CASCADE)
     sought = models.BooleanField(default=False)
     buyers = models.ManyToManyField(User, related_name='mybuyers', default=None, blank=True)
     call_time = models.PositiveIntegerField(default=None, blank=True, null=True)
-    #main_silo = models.ForeignKey(MainSilo, related_name='room_link', on_delete=models.CASCADE, null=True, default=None, blank=True)
     fields = models.TextField(default=None, null=True)
+    off_id = models.TextField(default=None, null=True, blank=True) #  The id for the room link when the process is handled by the company
+    data_needed = models.BooleanField(default=False) #  This indicates whether this needs data from the device or from the server (only if off_id is not None)
+    url = models.TextField(default=None, null=True, blank=True)
 
     def __str__(self):
         return self.name
