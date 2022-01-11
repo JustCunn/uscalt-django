@@ -2,14 +2,40 @@ from rest_framework import serializers
 from .models import Room, RoomLink, MainSilo, AuxSilo #LinkRegularData
 
 class RoomLinkSerializer(serializers.ModelSerializer):
+    
+    is_bought_by_me = serializers.SerializerMethodField('_bought')
+    user_count = serializers.SerializerMethodField('_count')
+
+    def _bought(self, obj):
+        uid = self.context.get('uid')
+
+        return obj.buyers.filter(id=uid).count() > 0
+
+    def _count(self, obj):
+        if obj.off_id is None:
+            return AuxSilo.objects.filter(link=obj.name).count()
+        else:
+            return False
+
+
     class Meta: 
         model = RoomLink
-        fields = ['id', 'display_name', 'desc', 'room', 'users', 
-                'name', 'sought', 'buyers', 'call_time', 'fields']
+
+        fields = ['id', 'display_name', 'desc', 'room', 
+                'name', 'sought', 'call_time', 'fields', 'is_bought_by_me', 'user_count']
+        extra_kwargs = {'url': {'lookup_url': 'id'}}
+
+class RoomLinkOwnerSerializer(serializers.ModelSerializer):
+
+    class Meta: 
+        model = RoomLink
+
+        fields = ['id', 'display_name', 'desc', 'room', 'users', 'buyers', 
+                'name', 'sought', 'call_time', 'fields',]
         extra_kwargs = {'url': {'lookup_url': 'id'}}
 
 class RoomInfoSerializer(serializers.ModelSerializer):
-    links = RoomLinkSerializer(many=True, read_only=True)
+    links = RoomLinkOwnerSerializer(many=True, read_only=True)
 
     class Meta:
         model = Room

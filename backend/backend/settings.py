@@ -13,9 +13,11 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 from datetime import timedelta
 from rest_framework.settings import api_settings
 from pathlib import Path
+import backend.config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+SECRET_KEY = backend.config.SECRET_KEY
 
 
 # Quick-start development settings - unsuitable for production
@@ -28,13 +30,12 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '192.168.0.3', '0.0.0.0']
 
-
 # Application definition
 
 INSTALLED_APPS = [
+    'django.contrib.contenttypes',
     'django.contrib.admin',
     'django.contrib.auth',
-    'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',

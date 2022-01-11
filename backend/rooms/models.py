@@ -42,7 +42,12 @@ class RoomLink(models.Model):
     off_id = models.TextField(default=None, null=True, blank=True) #  The id for the room link when the process is handled by the company
     data_needed = models.BooleanField(default=False) #  This indicates whether this needs data from the device or from the server (only if off_id is not None)
     url = models.TextField(default=None, null=True, blank=True)
+    sample = models.TextField(default=None, blank=True, null=True)
 
+    class Meta:
+        app_label = 'rooms'
+
+        
     def __str__(self):
         return self.name
 

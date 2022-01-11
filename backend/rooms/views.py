@@ -5,8 +5,10 @@ from rest_framework import viewsets, generics
 from rest_framework.response import Response
 from rest_framework.generics import RetrieveAPIView
 from rest_framework.views import APIView
+from rest_framework.renderers import JSONRenderer
+from django.core import serializers
 from .models import Room, RoomLink, MainSilo, AuxSilo #LinkRegularData
-from .serializers import RoomInfoSerializer, RoomLinkSerializer, RegisterRoom, MainSiloSerializer, AuxSiloSerializer, RoomInfoNoUsersSerializer #LinkRegularDataSerializer
+from .serializers import RoomInfoSerializer, RoomLinkSerializer, RegisterRoom, MainSiloSerializer, AuxSiloSerializer, RoomInfoNoUsersSerializer, RoomLinkOwnerSerializer #LinkRegularDataSerializer
 from accounts.serializers import UserSerializer
 from django.contrib.auth.models import User
 from django.http import HttpResponse
@@ -18,12 +20,74 @@ import csv
 from datetime import datetime, date, timezone
 import requests
 import random  
-import string  
+import string 
+
+class test(APIView):
+    def get(self, request, *args, **kwargs):
+        qs = Room.objects.filter(owner=request.user)
+        qss = list(qs.values())
+        for i in qss:
+            del i['id']
+        return Response({'lol': 'lol'})
 
 class RoomApi(viewsets.ModelViewSet):
     queryset = Room.objects.all().order_by('name')
     lookup_field = 'name'
     serializer_class = RoomInfoSerializer
+
+class RoomLinks(APIView):
+    """
+    Used by web-app to get room links and to delete them (by owner)
+    """
+    def get(self, request, *args, **kwargs):
+        name = self.kwargs['argname']
+        instance = Room.objects.get(name=name)
+        disp_name = instance.name
+        dev_name = instance.dev_name
+        brief_desc = instance.brief_desc
+        links = instance.links.all()
+        
+        return Response({"name": disp_name,
+                        "dev_name": dev_name,
+                        "brief_desc": brief_desc,
+                        "links": RoomLinkSerializer(links, 
+                                                    many=True, 
+                                                    context={'uid': request.user.id}).data})
+
+    def delete(self, request, format=None, *args, **kwargs):
+        rl_id = kwargs['argname']
+        instance = RoomLink.objects.get(id=rl_id)
+        if request.user == instance.room.owner:
+            RoomLink.objects.get(id=rl_id).delete()
+            response = Response({'message': True})
+        else:
+            response = Response({'message': "Not authorised to carry out action"})
+
+        return response
+
+class DownloadSample(APIView):
+    """
+    Creates a Downloadable Sample CSV file
+    """
+    def get(self, request, *args, **kwargs):
+        link_name = self.kwargs['link']
+        link = RoomLink.objects.get(id=link_name)
+        data = link.sample.split(r'\n')
+            
+        # Turn into downloadable file
+        response = HttpResponse(
+            content_type='text/csv',
+            headers={'Content-Disposition': 'attachment; filename="somefilename.csv"'},
+        )
+
+        write = csv.writer(response)
+        write.writerow(link.fields.split(','))
+
+        for i in data:
+            write.writerow(i.split(','))
+
+        return response
+        
 
 class RegisterRoom(generics.ListCreateAPIView):
     queryset = Room.objects.all()
@@ -38,14 +102,13 @@ class RegisterLink(generics.ListCreateAPIView):
     serializer_class = RoomLinkSerializer
 
     def perform_create(self, serializer):
-        #main_silo = self.request.data.get('room')+self.request.data.get('display_name')+'silo'
-        #ms = MainSilo(name=main_silo)
-        #ms.save()
-        print(self.request.data.get('off_id'))
         if self.request.data.get('off_id') == True:
             off_id = ''.join((random.choice(string.ascii_lowercase) for x in range(10)))
             serializer.save(name=self.request.data.get('room')+self.request.data.get('display_name'),
             off_id=off_id, url=self.request.data.get('url'))
+        elif self.request.data.get('cloud') == True:
+            serializer.save(name=self.request.data.get('room')+self.request.data.get('display_name'),
+            data_needed=True, url=self.request.data.get('url'))
         else:
             serializer.save(name=self.request.data.get('room')+self.request.data.get('display_name'))
 
@@ -54,6 +117,7 @@ class CheckIfExists(APIView):
     def post(self, request, *args, **kwargs):
         #Check if the user already has data sent in
         #TODO Tell user not to send data in
+        
         try:
             exist = AuxSilo.objects.get(name=request.data.get('name'))
         except AuxSilo.DoesNotExist:
@@ -62,8 +126,9 @@ class CheckIfExists(APIView):
         if exist is not None:
             aux = AuxSilo.objects.get(name=request.data.get('name'))
             u_time = aux.time
-            if (datetime.now(timezone.utc) - u_time).seconds > 7200:
-                response = Response({"status": "true"}, {"hash": aux.data_hash})
+            if (datetime.now(timezone.utc) - u_time).seconds > 0:
+                if request.data.get('hash') != aux.data_hash:
+                    response = Response({"status": "true"})
             else:
                 response = Response({"status": "false"})
         else:
@@ -74,11 +139,11 @@ class CheckIfExists(APIView):
 class UploadData(APIView):
     def post(self, request, *args, **kwargs):
         #If user silo already exists, replace the data
-        if AuxSilo.objects.filter(name=request.data.get('name')).exists():
+        if AuxSilo.objects.filter(name=request.data.get('name')):
             d_hash = hashlib.md5(request.data.get('data').encode('UTF-8'))
-            ax = AuxSilo.objects.filter(link=request.data.get('link'), time=datetime.now())
-            ax.data_hash, ax.data = data_hash=d_hash, data=request.data.get('data')
-            ax.save()
+            ax = AuxSilo.objects.filter(name=request.data.get('name')).get(link=request.data.get('link'))
+            ax.data_hash = d_hash
+            ax.data = request.data.get('data')
         else:
             #If not, Create a silo and temp store data
             d_hash = hashlib.md5(request.data.get('data').encode('UTF-8'))
@@ -102,22 +167,32 @@ class BuyData(APIView):
         sought_room_link.sought = True
         sought_room_link.save()
 
+        return Response({"task": "success"})
+
 class DownloadData(APIView):
     """Bundles and sends download to user"""
     def get(self, request, *args, **kwargs):
         link = self.kwargs['link']
         uid = self.kwargs['uid']
 
-        #Get the relevant Room Link
+        # Get the relevant Room Link
         sought_room_link = RoomLink.objects.get(id=link)
         fields = sought_room_link.fields.split(',')
 
-        if sought_room_link.off_id is not None:
-            
+        if (sought_room_link.off_id is not None) and (sought_room_link.off_id != ''):
+            r = requests.get(sought_room_link.url+'download/', params = {'off_id': sought_room_link.off_id,
+            'fields': sought_room_link.fields, 'email': request.user.email})
+            data = r.json()
+            response = HttpResponse(data['file'], content_type='text/csv')
+            response['Content-Disposition'] = 'attachment; filename="somefile.csv"'
+            """
             r = requests.get(sought_room_link.url+'download/', params = {'off_id': sought_room_link.off_id,
             'fields': sought_room_link.fields})
+            """
+        elif (sought_room_link.data_needed == True):
+            r = requests.get(sought_room_link.url+'clouddownload/', params = {'off_id': sought_room_link.display_name,
+            'fields': sought_room_link.fields, 'email': request.user.email})
             data = r.json()
-            print(r.json())
             response = HttpResponse(data['file'], content_type='text/csv')
             response['Content-Disposition'] = 'attachment; filename="somefile.csv"'
             """
@@ -125,7 +200,7 @@ class DownloadData(APIView):
             'fields': sought_room_link.fields})
             """
         else:
-            #Get all the associated silos
+            # Get all the associated silos
             Auxs = AuxSilo.objects.filter(link=sought_room_link.display_name)
 
             temp_list = []
@@ -134,7 +209,7 @@ class DownloadData(APIView):
                 temp_list.append(item.data.split(','))
 
             
-            #Turn into downloadable file
+            # Turn into downloadable file
             response = HttpResponse(
                 content_type='text/csv',
                 headers={'Content-Disposition': 'attachment; filename="somefilename.csv"'},
@@ -148,27 +223,14 @@ class DownloadData(APIView):
 
             Auxs.delete()
             
-        sought_room_link.buyers.remove(User.objects.get(id=uid))
+        request.user.mybuyers.clear()
 
-        #Remove the data from our server
-        #print(sought_room_link.buyers)
         #if sought_room_link.buyers is None:
         sought_room_link.sought = False
 
         sought_room_link.save()
 
         return response
-
-
-"""
-class RetrieveData(generics.ListAPIView):
-    serializer_class = LinkRegularDataSerializer
-
-    def get_queryset(self):
-        name = self.kwargs['name']
-        query_set = LinkRegularData.objects.filter(name=name).distinct()
-        return query_set
-"""
 
 class RetrieveLink(APIView):
     def get(self, request, *args, **kwargs):
@@ -214,5 +276,10 @@ class GetRoomLinksByRoom(APIView):
         for item in queryset:
             if item.users.filter(user=self.request.user.id).exists():
                 if item.sought:
-                    arr.append(item.display_name)
+                    if (item.off_id is not None) and (item.off_id != ''):
+                        arr.append(f't_party_{item.display_name}{item.off_id}')
+                    elif (item.data_needed == True):
+                        arr.append(f't_party_nodata_{item.display_name}')
+                    else:
+                        arr.append(item.display_name)
         return Response({"active_links": arr})
