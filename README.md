@@ -1,1 +1,4 @@
-# This is an example django project to test our library. The library can be found at https://github.com/JustCunn/uscalt-drf
+# This is "Uscalt's" backend.
+
+backend/accounts holds all the User logic.
+backend/rooms handles the rest of the logic.
